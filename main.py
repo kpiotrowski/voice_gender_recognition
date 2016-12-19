@@ -38,8 +38,6 @@ def HPS(rate, dataVoice):
     if(sum(result[maleMinMax[0]:maleMinMax[1]]) > sum(result[femaleMinMax[0]:femaleMinMax[1]])): return 1
     return 0
 
-
-
 def simpleRecognition(rate, data):
     if(checkBaseFreq(maleFemaleFreq[0], rate, data) < checkBaseFreq(maleFemaleFreq[1], rate, data)): return 1
     return 0
