@@ -49,11 +49,6 @@ def checkBaseFreq(freq, ratio, data):
 def listVariation(list1, list2): return sum([ abs(int(x)-int(y)) for x,y in zip(list1, list2)])
 
 if __name__ == "__main__":
-    #wspMax = 0
-    # for MM in range(119,122,1):
-    #     for K in range(232,235,1):
-    #         maleFemaleFreq=[MM,K]
-
     # male: 1 female: 0
     M = [[0,0],[0,0]]
     files = glob.glob("samples/*.wav")
@@ -62,14 +57,7 @@ if __name__ == "__main__":
         shouldBe = int(file.replace("/", "_").replace(".", "_").split("_")[2] == "M")
         found = HPS(rate, array)
         #found = simpleRecognition(rate, array)
-        #print(found)
         M[shouldBe][found]+=1
-    #print("MACIERZ POKRYCIA:")
     print(M)
     wsp = (M[0][0] + M[1][1]) / (sum(M[0]) + sum(M[1]))
     print(wsp)
-
-            #
-            # if(wsp-wspMax>0.0001):
-            #    wspMax = wsp
-            #    print("WSP: "+str(wsp)+" M: "+str(MM)+" K: "+str(K))
