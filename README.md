@@ -1,4 +1,4 @@
-# voice_gender_recognition_PYTHON
+# voice_gender_recognition
 Simple script in python to recognize gender using audio samples.
 
 Implemented two methods:
