@@ -1,6 +1,9 @@
 import sounddevice as sd
 import numpy as np
 from scipy.fftpack import fft
+from copy import copy
+from tkinter import filedialog
+import tkinter as tk
 
 # Define la duración de la grabación en segundos
 DURATION = 5
@@ -9,7 +12,7 @@ DURATION = 5
 SAMPLE_RATE = 44100
 
 # Define los rangos de frecuencia para voces masculinas y femeninas
-maleMinMax = (85, 170)
+maleMinMax = (85, 180)
 femaleMinMax = (165, 255)
 
 # Define el umbral de detección de silencio
@@ -39,24 +42,30 @@ def HPS(rate, data):
         return "Male"
     return "Female"
 
-# Define la función de callback que se llamará para cada bloque de audio
-def callback(indata, frames, time, status):
-    if status:
-        print(f"Error en la captura de audio: {status}")
-        return
+# Función para seleccionar un archivo de audio
+def choose_audio_file():
+    root = tk.Tk()
+    root.withdraw()
+    file_path = filedialog.askopenfilename(title="Seleccionar archivo de audio", filetypes=[("Archivos de audio", "*.wav;*.mp3")])
+    return file_path
 
-    # Convierte los datos de audio a un array de NumPy
-    data = np.frombuffer(indata, dtype=np.float32)
+# Decide si usar el micrófono o cargar un archivo de audio
+use_microphone = input("¿Usar el micrófono? (s/n): ").lower() == 's'
 
-    # Aplica la función HPS a los datos de audio
-    gender = HPS(SAMPLE_RATE, data)
-
-    # Imprime el resultado
-    print(gender)
-
-# Crea un objeto de entrada de audio con la función de callback
-stream = sd.InputStream(callback=callback, channels=1, samplerate=SAMPLE_RATE)
-
-# Inicia la captura de audio
-with stream:
-    sd.sleep(int(DURATION * 1000))
+if use_microphone:
+    # Utiliza el micrófono
+    print("Usando el micrófono...")
+    stream = sd.InputStream(callback=callback, channels=1, samplerate=SAMPLE_RATE)
+    with stream:
+        sd.sleep(int(DURATION * 1000))
+else:
+    # Cargar archivo de audio
+    file_path = choose_audio_file()
+    if file_path:
+        print(f"Usando archivo de audio: {file_path}")
+        data, rate = sd.read(file_path, dtype='float32')
+        if len(data.shape) == 1:  # Mono audio
+            gender = HPS(rate, data)
+            print(f"Género detectado: {gender}")
+        else:
+            print("El archivo debe ser de un solo canal (mono).")
