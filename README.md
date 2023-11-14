@@ -1,10 +1,5 @@
-# voice_gender_recognition
-Simple script in python to recognize gender using audio samples.
 
-Implemented two methods:
 
-- autocorrelation (89% correctly recognized)
-- HPS - Harmonic Product Spectrum (96.7 correctly recognized)
+# Gender Voice Recognition in Python
 
-Our algorithm was tested on 91 different audio samples.
-As an output we return coverage matrix and the efficiency (correct/fail ratio)
+Este proyecto es un fork del repositorio original, que ha estado inactivo durante varios años. Mi objetivo es continuar el desarrollo y mejorar la funcionalidad del reconocimiento de género por voz.

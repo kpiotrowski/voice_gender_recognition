@@ -2,6 +2,7 @@ import glob
 from scipy.io import wavfile
 from pylab import *
 from scipy import *
+from numpy.fft import fft
 
 maleFemaleFreq = [120, 232]
 TS=3 #time for simple method
@@ -47,6 +48,7 @@ def checkBaseFreq(freq, ratio, data):
 def listVariation(list1, list2): return sum([ abs(int(x)-int(y)) for x,y in zip(list1, list2)])
 
 if __name__ == "__main__":
+    x=1
     # male: 1 female: 0
     M = [[0,0],[0,0]]
     files = glob.glob("samples/*.wav")
@@ -56,6 +58,9 @@ if __name__ == "__main__":
         found = HPS(rate, array)
         #found = simpleRecognition(rate, array)
         M[shouldBe][found]+=1
+     
+        print(x)
+        x=x+1
     print(M)
     wsp = (M[0][0] + M[1][1]) / (sum(M[0]) + sum(M[1]))
     print(wsp)
