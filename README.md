@@ -18,8 +18,8 @@ Este proyecto es un fork del repositorio original, que ha estado inactivo durant
      -    [ ] Code Improvement
 -    [ ] Add Complete Documentation
 -    [x] Add Microphone gender recognition
--    [ ] Add Microphone Gender Detail
--    [ ] Add Audio file Gender Detail
+-    [x] Add Microphone Gender Detail
+-    [x] Add Audio file Gender Detail
 
 See the [open pull](https://github.com/gabiru05/Gender-Voice-Recognition-in-Python/pulls) and contribute to make a full list of proposed features (and known issues).
 
