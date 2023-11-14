@@ -1,7 +1,6 @@
 import sounddevice as sd
 import numpy as np
 from scipy.fftpack import fft
-from copy import copy
 
 # Define la duración de la grabación en segundos
 DURATION = 5
@@ -10,49 +9,33 @@ DURATION = 5
 SAMPLE_RATE = 44100
 
 # Define los rangos de frecuencia para voces masculinas y femeninas
-maleMinMax = (75, 150)
-femaleMinMax = (150, 255)
+maleMinMax = (85, 170)
+femaleMinMax = (165, 255)
 
-# Define el número de iteraciones para el método HPS
-HPSLoop = 5
+# Define el umbral de detección de silencio
+SILENCE_THRESHOLD = 0.01  # Ajusta este valor según sea necesario
 
 # Define la función HPS
 def HPS(rate, data):
-    dataVoice = data
-    T = 3  # time for HPS method
+    # Calcula la energía del audio
+    energy = np.sum(np.abs(data))
 
-    if T > len(dataVoice) / rate:
-        T = len(dataVoice) / rate
-    dataVoice = dataVoice[max(0, int(len(dataVoice) / 2) - int(T / 2 * rate)):min(len(dataVoice) - 1, int(len(dataVoice) / 2) + int(T / 2 * rate))]
-    partLen = int(rate)
-    parts = [dataVoice[i * partLen:(i + 1) * partLen] for i in range(int(T))]
-    resultParts = []
-    
-    fftR = np.zeros(len(dataVoice))  # Inicializa fftR aquí
+    # Añade una comprobación de silencio
+    if energy < SILENCE_THRESHOLD:
+        return "Silence"
 
-    for data in parts:
-        window = np.hamming(len(data))
-        data = data * window
-        fftV = abs(fft(data)) / rate
-        fftR = copy(fftV)
-        for i in range(2, HPSLoop):
-            tab = copy(fftV[::i])
-            fftR = fftR[:len(tab)]
-            fftR *= tab
-        resultParts.append(fftR)
+    # Normaliza los datos de audio
+    data = data / np.max(np.abs(data))
 
-    # Asegúrate de que resultParts tenga al menos un elemento
-    if not resultParts:
-        resultParts.append(np.zeros(len(fftR)))
+    # Aplica la transformada de Fourier rápida (FFT)
+    fft_result = abs(fft(data)) / rate
 
-    result = np.zeros(len(resultParts[0]))
+    # Calcula las sumas para los rangos de frecuencia masculina y femenina
+    male_sum = sum(fft_result[maleMinMax[0]:maleMinMax[1]])
+    female_sum = sum(fft_result[femaleMinMax[0]:femaleMinMax[1]])
 
-    for res in resultParts:
-        if len(res) != len(result):
-            continue
-        result = np.add(result, res)
-
-    if sum(result[maleMinMax[0]:maleMinMax[1]]) > sum(result[femaleMinMax[0]:femaleMinMax[1]]):
+    # Determina el género basado en las sumas
+    if male_sum > female_sum:
         return "Male"
     return "Female"
 
@@ -68,7 +51,7 @@ def callback(indata, frames, time, status):
     # Aplica la función HPS a los datos de audio
     gender = HPS(SAMPLE_RATE, data)
 
-    # Aquí puedes hacer algo con el resultado (por ejemplo, imprimirlo)
+    # Imprime el resultado
     print(gender)
 
 # Crea un objeto de entrada de audio con la función de callback
