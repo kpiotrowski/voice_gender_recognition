@@ -10,16 +10,16 @@ from copy import copy
 SAMPLE_RATE = 44100
 
 # Define los rangos de frecuencia para voces masculinas y femeninas
-maleMinMax = (50, 180)
+maleMinMax = (50, 175)
 femaleMinMax = (165, 300)
 
 # Define el número de iteraciones para el método HPS
-HPSLoop = 5
+HPSLoop = 6
 
 # Define la función HPS
 def HPS(rate, data):
     # Añade una comprobación de silencio
-    if np.max(np.abs(data)) < 5e-4:
+    if np.max(np.abs(data)) < 1e-1:
         return "Silence"
     # Normaliza los datos de audio
     data = data / np.max(np.abs(data))
@@ -64,7 +64,16 @@ def HPS(rate, data):
     if male_sum > female_sum:
         return "Male"
     return "Female"
-    
+
+def post_process(predictions):
+    # Promedio ponderado para suavizado
+    alpha = 0.2
+    smoothed_predictions = [predictions[0]]
+    for i in range(1, len(predictions)):
+        smoothed_predictions.append(alpha * predictions[i] + (1 - alpha) * smoothed_predictions[-1])
+    return smoothed_predictions
+
+
 # Contadores para el recuento
 male_count = 0
 female_count = 0
@@ -73,22 +82,39 @@ silence_count = 0
 def process_audio(file_path):
     global male_count, female_count, silence_count
     try:
-        fs, audio_data = read(file_path)
-        audio_data = audio_data.astype('float32') / np.max(np.abs(audio_data))  # Normaliza los datos de audio
+        file_extension = os.path.splitext(file_path)[1].lower()
+        if file_extension == '.wav':
+            fs, audio_data = read(file_path)
+            audio_data = audio_data.astype('float32') / np.max(np.abs(audio_data))
+           
+        else:
+            print(f"Formato no compatible para el archivo {file_path}")
+            return
+        print(f"Nombre del archivo: {os.path.basename(file_path)}")
         print(f"Duración del archivo: {len(audio_data) / fs:.2f} segundos")
         gender = HPS(fs, audio_data)
-        print(f"Género detectado: {gender}")
-        print("\n" + "="*30 + "\n")
+        
+        
+        original_prediction = [1, 0] if gender == 'Male' else [0, 1] if gender == 'Female' else [0, 0]
 
-        # Incrementa los contadores
-        if gender == "Male":
+        # Aplicar post-procesamiento
+        smoothed_gender = post_process(original_prediction)
+
+        
+        # Aplicar post-procesamiento
+        if smoothed_gender[0] > smoothed_gender[1]:
             male_count += 1
-        elif gender == "Female":
+        elif smoothed_gender[1] > smoothed_gender[0]:
             female_count += 1
-        elif gender == "Silence":
-            silence_count += 1
+
+
+        print(f"Género detectado (original): {gender}")
+        print(f"Género detectado (suavizado): {'Male' if smoothed_gender[0] > smoothed_gender[1] else 'Female' if smoothed_gender[1] > smoothed_gender[0] else 'Silence'}")
+        print("\n" + "=" * 30 + "\n")
+        
     except Exception as e:
         print(f"Error al procesar {file_path}: {e}")
+
 
 # Función de callback para micrófono
 def callback(indata, frames, time, status):
@@ -122,24 +148,19 @@ if source_option == 'm':
             stream.stop()
             stream.close()
 
-
 elif source_option == 'a':
     # Configuración para cargar archivos de audio desde la carpeta "samples"
     samples_folder = "samples"
     for filename in os.listdir(samples_folder):
-        if filename.endswith(".wav"):
+         if filename.endswith(".wav"):
             file_path = os.path.join(samples_folder, filename)
-            try:
-                fs, audio_data = read(file_path)  # Usa scipy.io.wavfile.read en lugar de sounddevice.read
-                audio_data = audio_data.astype('float32') / np.max(np.abs(audio_data))  # Normaliza los datos de audio
-                print(f"Procesando {file_path}...")
-                gender = HPS(fs, audio_data)
-                print(f"Género detectado: {gender}")
-                print("\n" + "="*30 + "\n")
-            except Exception as e:
-                print(f"Error al procesar {file_path}: {e}")
+            # Usa la función process_audio y almacena el resultado en la variable 'gender'
+            process_audio(file_path)
 
-print(f"Recuento final:")
-print(f"Male: {male_count}")
-print(f"Female: {female_count}")
-print(f"Silence: {silence_count}")
+    # Después de procesar todos los archivos, imprime el recuento
+    print(f"Recuento final:")
+    print(f"Male: {male_count}")
+    print(f"Female: {female_count}")
+    print(f"Silence: {silence_count}")
+else:
+    print("Opción no válida. Debe ser 'm' o 'a'.")
