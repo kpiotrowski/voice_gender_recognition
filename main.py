@@ -85,8 +85,10 @@ def process_audio(file_path):
         file_extension = os.path.splitext(file_path)[1].lower()
         if file_extension == '.wav':
             fs, audio_data = read(file_path)
+            # Convierte a mono si es estéreo
+            if len(audio_data.shape) > 1:
+                audio_data = np.mean(audio_data, axis=1)
             audio_data = audio_data.astype('float32') / np.max(np.abs(audio_data))
-           
         else:
             print(f"Formato no compatible para el archivo {file_path}")
             return
@@ -114,6 +116,7 @@ def process_audio(file_path):
         
     except Exception as e:
         print(f"Error al procesar {file_path}: {e}")
+        
 
 
 # Función de callback para micrófono
@@ -124,6 +127,8 @@ def callback(indata, frames, time, status):
 
     # Convierte los datos de audio a un array de NumPy
     data = np.frombuffer(indata, dtype=np.float32)
+    if len(data.shape) > 1:
+        data = np.mean(data, axis=1)
 
     # Aplica la función HPS a los datos de audio
     gender = HPS(SAMPLE_RATE, data)
