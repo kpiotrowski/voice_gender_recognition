@@ -34,7 +34,7 @@ The script depends on several Python libraries, including `sounddevice` for audi
   - [ ] Enhance code quality and structure.
   
 - [ ] **Complete Documentation**
-  - [ ] Provide comprehensive documentation for the entire project.
+  - [x] Provide comprehensive documentation for the entire project.
   - [ ] Include detailed explanations for each component and functionality.
 
 - [x] **Microphone Gender Recognition**

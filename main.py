@@ -4,9 +4,8 @@ import numpy as np
 from scipy.io.wavfile import read
 from scipy.fftpack import fft
 from copy import copy
+import shutil
 
-
-# Define la frecuencia de muestreo (en Hz)
 SAMPLE_RATE = 44100
 
 # Define los rangos de frecuencia para voces masculinas y femeninas
@@ -16,7 +15,17 @@ femaleMinMax = (165, 300)
 # Define el número de iteraciones para el método HPS
 HPSLoop = 6
 
-# Define la función HPS
+# Contadores para el recuento
+male_count = 0
+female_count = 0
+unknown_count = 0
+
+# Variables globales para contar índices
+male_index = 0
+female_index = 0
+unknown_index = 0
+
+# Función HPS (sin cambios)
 def HPS(rate, data):
     # Añade una comprobación de silencio
     if np.max(np.abs(data)) < 1e-1:
@@ -65,22 +74,9 @@ def HPS(rate, data):
         return "Male"
     return "Female"
 
-def post_process(predictions):
-    # Promedio ponderado para suavizado
-    alpha = 0.2
-    smoothed_predictions = [predictions[0]]
-    for i in range(1, len(predictions)):
-        smoothed_predictions.append(alpha * predictions[i] + (1 - alpha) * smoothed_predictions[-1])
-    return smoothed_predictions
-
-
-# Contadores para el recuento
-male_count = 0
-female_count = 0
-silence_count = 0
-
-def process_audio(file_path):
-    global male_count, female_count, silence_count
+# Función para procesar audio
+def process_audio(file_path, perform_rename=False):
+    global male_count, female_count, unknown_count
     try:
         file_extension = os.path.splitext(file_path)[1].lower()
         if file_extension == '.wav':
@@ -92,32 +88,81 @@ def process_audio(file_path):
         else:
             print(f"Formato no compatible para el archivo {file_path}")
             return
+
         print(f"Nombre del archivo: {os.path.basename(file_path)}")
         print(f"Duración del archivo: {len(audio_data) / fs:.2f} segundos")
+
+        # Obtiene el género detectado por la función HPS
         gender = HPS(fs, audio_data)
-        
-        
+
         original_prediction = [1, 0] if gender == 'Male' else [0, 1] if gender == 'Female' else [0, 0]
 
         # Aplicar post-procesamiento
         smoothed_gender = post_process(original_prediction)
 
-        
         # Aplicar post-procesamiento
         if smoothed_gender[0] > smoothed_gender[1]:
             male_count += 1
+            result_gender = 'Male'
         elif smoothed_gender[1] > smoothed_gender[0]:
             female_count += 1
-
+            result_gender = 'Female'
+        else:
+            unknown_count += 1
+            result_gender = 'Unknown'
 
         print(f"Género detectado (original): {gender}")
-        print(f"Género detectado (suavizado): {'Male' if smoothed_gender[0] > smoothed_gender[1] else 'Female' if smoothed_gender[1] > smoothed_gender[0] else 'Silence'}")
+        print(f"Género detectado (suavizado): {result_gender}")
         print("\n" + "=" * 30 + "\n")
-        
+
+        if perform_rename:
+            # Realiza el renombrado automáticamente
+            rename_file(file_path, result_gender)
+
     except Exception as e:
         print(f"Error al procesar {file_path}: {e}")
-        
 
+# Función para renombrar un archivo
+def rename_file(file_path, gender):
+    global male_index, female_index, unknown_index
+
+    # Configuración para cargar archivos de audio desde la carpeta especificada
+    output_folder = "output"
+
+    # Crear la carpeta de salida si no existe
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    # Genera el nuevo nombre del archivo en función del género
+    if gender == 'Male':
+        new_filename = f"{male_index:02d}_Male.wav"
+        male_index += 1
+    elif gender == 'Female':
+        new_filename = f"{female_index:02d}_Female.wav"
+        female_index += 1
+    else:
+        new_filename = f"{unknown_index:02d}_Unknown.wav"
+        unknown_index += 1
+
+    new_file_path = os.path.join(output_folder, new_filename)
+
+    # Si es renombrado automáticamente, no pregunta si debe sobrescribir
+    if not os.path.exists(new_file_path):
+        shutil.copy2(file_path, new_file_path)
+        print(f"Archivo renombrado y copiado automáticamente: {new_filename}")
+    else:
+        # Pregunta si desea sobrescribir si el archivo ya existe
+        overwrite_option = input(f"El archivo {new_filename} ya existe. ¿Desea sobrescribirlo? (y/n): ")
+        if overwrite_option.lower() == 'y':
+            shutil.copy2(file_path, new_file_path)
+            print(f"Archivo renombrado y copiado: {new_filename}")
+        else:
+            print(f"El archivo {os.path.basename(file_path)} no se ha renombrado.")
+
+# Función para suavizar la predicción
+def post_process(prediction):
+    # Implementa aquí tu lógica de suavizado
+    return prediction
 
 # Función de callback para micrófono
 def callback(indata, frames, time, status):
@@ -137,10 +182,8 @@ def callback(indata, frames, time, status):
     print(f"Género detectado: {gender}")
     print("\n" + "="*30 + "\n")
 
-# Pregunta al usuario si desea usar el micrófono o archivos de la carpeta "samples"
-source_option = input("Seleccione 'm' para micrófono o 'a' para archivos en la carpeta 'samples': ")
-
-if source_option == 'm':
+# Función principal para analizar el micrófono
+def analyze_microphone():
     # Configuración para micrófono
     stream = sd.InputStream(callback=callback, channels=1, samplerate=SAMPLE_RATE)
     try:
@@ -153,19 +196,131 @@ if source_option == 'm':
             stream.stop()
             stream.close()
 
-elif source_option == 'a':
-    # Configuración para cargar archivos de audio desde la carpeta "samples"
-    samples_folder = "samples"
-    for filename in os.listdir(samples_folder):
-         if filename.endswith(".wav"):
-            file_path = os.path.join(samples_folder, filename)
-            # Usa la función process_audio y almacena el resultado en la variable 'gender'
-            process_audio(file_path)
-
-    # Después de procesar todos los archivos, imprime el recuento
+# Función principal para analizar y renombrar archivos automáticamente
+def analyze_and_rename_audio_files(folder_path):
+    global male_index, female_index, unknown_index, male_count, female_count, unknown_count
+    # Reinicia los contadores y los índices al comienzo
+    male_count = 0
+    female_count = 0
+    unknown_count = 0
+    male_index = 0
+    female_index = 0
+    unknown_index = 0
+    
+    # Imprime el recuento final
     print(f"Recuento final:")
     print(f"Male: {male_count}")
     print(f"Female: {female_count}")
-    print(f"Silence: {silence_count}")
-else:
-    print("Opción no válida. Debe ser 'm' o 'a'.")
+    print(f"Silence or unknown: {unknown_count}")
+
+    # Itera sobre los archivos procesados
+    for filename in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, filename)
+
+        # Procesa el audio
+        process_audio(file_path, perform_rename=True)
+
+    # Imprime el recuento final después de la actualización
+    print(f"Recuento final después de la actualización:")
+    print(f"Male: {male_count}")
+    print(f"Female: {female_count}")
+    print(f"Silence or unknown: {unknown_count}")
+
+def analyze_audio_files(folder_path):
+    global male_count, female_count, unknown_count
+    # Imprime el recuento final antes de la iteración
+    print(f"Recuento final antes de la iteración:")
+    print(f"Male: {male_count}")
+    print(f"Female: {female_count}")
+    print(f"Silence or unknown: {unknown_count}")
+
+    # Itera sobre los archivos en la carpeta
+    for filename in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, filename)
+
+        # Procesa el audio sin realizar el renombrado
+        process_audio(file_path)
+
+    # Imprime el recuento final después de la iteración
+    print(f"Recuento final después de la iteración:")
+    print(f"Male: {male_count}")
+    print(f"Female: {female_count}")
+    print(f"Silence or unknown: {unknown_count}")
+
+# Función principal para renombrar archivos manualmente
+def rename_files_manually(input_folder):
+    global male_index, female_index, unknown_index
+    # Configuración para cargar archivos de audio desde la carpeta especificada
+    output_folder = "output_manual"
+
+    # Crear la carpeta de salida si no existe
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    for filename in os.listdir(input_folder):
+        file_path = os.path.join(input_folder, filename)
+
+        # Pregunta al usuario el nuevo nombre
+        new_filename = input(f"Ingrese el nuevo nombre para {filename}: ")
+
+        # Genera el nuevo nombre del archivo en función del género
+        if "Male" in filename:
+            new_filename = f"{new_filename}.wav"
+            male_index += 1
+        elif "Female" in filename:
+            new_filename = f"{new_filename}.wav"
+            female_index += 1
+        else:
+            new_filename = f"{new_filename}.wav"
+            unknown_index += 1
+
+        new_file_path = os.path.join(output_folder, new_filename)
+
+        # Pregunta si desea sobrescribir si el archivo ya existe
+        if os.path.exists(new_file_path):
+            overwrite_option = input(f"El archivo {new_filename} ya existe. ¿Desea sobrescribirlo? (y/n): ")
+            if overwrite_option.lower() != 'y':
+                print(f"El archivo {filename} no se ha renombrado.")
+                continue
+
+        shutil.copy2(file_path, new_file_path)
+        print(f"Archivo renombrado: {new_filename}")
+        print("\n" + "=" * 30 + "\n")
+
+
+while True:
+    print("Menu Principal:")
+    print("1. Analizar audio")
+    print("2. Analizar y renombrar audio automáticamente")
+    print("3. Renombrar archivo manualmente")
+    print("0. Salir")
+
+    option = input("Seleccione una opción (0-3): ")
+
+    if option == "0":
+        break
+    elif option == "1":
+        print("Seleccione el tipo de análisis:")
+        print("a. Analizar archivos de audio")
+        print("m. Analizar audio del micrófono")
+        
+        analysis_option = input("Seleccione una opción (a/m): ")
+
+        if analysis_option == "a":
+            folder_path = input("Ingrese la ruta de la carpeta de archivos de audio: ")
+            analyze_audio_files(folder_path)
+        elif analysis_option =="m":
+            analyze_microphone()
+        else:
+            print("Opción no válida.")
+
+    elif option == "2":
+        folder_path = input("Ingrese la ruta de la carpeta de archivos de audio: ")
+        analyze_and_rename_audio_files(folder_path)
+
+    elif option == "3":
+        input_folder = input("Ingrese la ruta de la carpeta de archivos de audio a renombrar manualmente: ")
+        rename_files_manually(input_folder)
+
+    else:
+        print("Opción no válida. Inténtelo de nuevo.")
